@@ -104,12 +104,7 @@ func processSlowQuery(logLines []string) {
 				`> **扫描的行数:** <font color=\"comment\">%d</font>\n`+
 				`> **SQL 查询:** <font color=\"comment\">%s</font>\n`,
 			queryTime, lockTime, database, host, user, rowsSent, rowsExamined, sqlQuery)
-
-		// 打印调试信息（仅供开发时查看，正常情况可去除）
-		fmt.Println("慢查询阈值:", slowQueryThreshold)
-		fmt.Println("查询时间:", queryTime)
-		fmt.Println("通知内容:", notificationContent)
-
+		
 		// 发送 Webhook 通知
 		sendWebhookNotification(notificationContent)
 	}
