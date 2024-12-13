@@ -1,0 +1,69 @@
+name: Build and Release
+
+on:
+  push:
+    tags:
+      - 'v*'  # 仅在推送标签时触发（例如：v1.0.0）
+
+jobs:
+  build:
+    runs-on: ubuntu-latest  # 你可以在这里选择不同的平台，但所有平台将在不同的步骤中构建
+
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest]  # 构建Linux和macOS
+        architecture: [x86_64, arm64]     # 构建AMD64和ARM64架构
+
+    env:
+      APP_NAME: mysql-slow-sql-webhook  # 设置应用程序名称变量
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v3  # 检出代码
+
+    - name: Set up Go (如果是Go项目)
+      uses: actions/setup-go@v3
+      with:
+        go-version: '1.23'  # 设置Go版本，根据需要调整
+
+    - name: Set GOARCH and GOOS for target architecture
+      run: echo "GOARCH=${{ matrix.architecture }} GOOS=${{ matrix.os == 'ubuntu-latest' && 'linux' || 'darwin' }}" >> $GITHUB_ENV
+
+    - name: Build executable
+      run: |
+        GOARCH=$GOARCH GOOS=$GOOS go build -o $APP_NAME-${GOOS}-${GOARCH} main.go
+        ls -lh $APP_NAME-${GOOS}-${GOARCH}  # 确认构建的文件
+
+    - name: Upload build artifacts
+      uses: actions/upload-artifact@v3
+      with:
+        name: $APP_NAME-${{ matrix.os }}-${{ matrix.architecture }}
+        path: $APP_NAME-${GOOS}-${GOARCH}
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v3  # 检出代码
+
+    - name: Create GitHub release
+      id: create_release
+      run: |
+        # 获取当前标签
+        VERSION=$(echo "${GITHUB_REF}" | sed 's/refs\/tags\///')
+        # 创建 GitHub release
+        response=$(curl -XPOST -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
+          -d '{"tag_name": "'"${VERSION}"'", "name": "'"${VERSION}"'", "body": "Release of '${VERSION}'"}' \
+          https://api.github.com/repos/${{ github.repository }}/releases)
+        echo "::set-output name=release_id::$(echo $response | jq .id)"
+
+    - name: Upload assets to GitHub release
+      run: |
+        VERSION=$(echo "${GITHUB_REF}" | sed 's/refs\/tags\///')
+        echo "Uploading build artifacts for release $VERSION"
+        for file in $APP_NAME-darwin-x86_64 $APP_NAME-linux-x86_64 $APP_NAME-linux-arm64; do
+          curl -XPOST -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
+            -F "file=@$file" \
+            https://uploads.github.com/repos/${{ github.repository }}/releases/${{ steps.create_release.outputs.release_id }}/assets?name=$(basename $file)
+        done
