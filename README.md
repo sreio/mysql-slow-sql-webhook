@@ -11,3 +11,18 @@ Usage of main.go:
 pflag: help requested
 exit status 2
 ```
+
+### 使用示例
+
+```bash
+# 使用帮助
+./mysql-slow-sql-webhook --help
+# 测试发送
+./mysql-slow-sql-webhook -u https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=xxxxx -t
+# 默认文件路径
+./mysql-slow-sql-webhook -u https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=xxxxx
+# 指定文件路径
+./mysql-slow-sql-webhook -u https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=xxxxx -f /log/mysql/mysql-slow.log
+# 设置发送通知超时时间
+./mysql-slow-sql-webhook -u https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=xxxxx -f /log/mysql/mysql-slow.log -s 0.2
+```
