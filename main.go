@@ -25,7 +25,7 @@ var readHistory bool           // 是否读取历史日志数据，默认为 fal
 var queryTimePattern = regexp.MustCompile(`# Query_time:\s*(\d+\.\d+|\d+)\s*Lock_time:\s*(\d+\.\d+|\d+)\s*Rows_sent:\s*(\d+)\s*Rows_examined:\s*(\d+)`)
 var userHostPattern = regexp.MustCompile(`# User@Host:\s*(\S+)\s*\[\S+\]\s*@\s*(\S+)`)
 var databasePattern = regexp.MustCompile(`# Database:\s*(\S+)`) // 匹配数据库名
-var sqlQueryPattern = regexp.MustCompile(`\n([A-Za-z0-9\s,.*()'\-=_;]+;)$`)
+var sqlQueryPattern = regexp.MustCompile(`(SELECT|INSERT|UPDATE|DELETE|REPLACE|CREATE|DROP|ALTER|TRUNCATE)\s+.+;`)
 
 // 发送Webhook通知
 func sendWebhookNotification(content string) {
@@ -86,7 +86,7 @@ func processSlowQuery(logLines []string) {
 
 		// 获取 SQL 查询语句
 		if matches := sqlQueryPattern.FindStringSubmatch(line); matches != nil {
-			sqlQuery = matches[1]
+			sqlQuery = line
 		}
 	}
 
