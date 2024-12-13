@@ -12,7 +12,7 @@ jobs:
     strategy:
       matrix:
         os: [ubuntu-latest, macos-latest]  # 构建Linux和macOS
-        architecture: [x86_64, arm64]     # 构建AMD64和ARM64架构
+        architecture: [amd64, arm64]     # 构建AMD64和ARM64架构
 
     env:
       APP_NAME: mysql-slow-sql-webhook  # 设置应用程序名称变量
@@ -26,19 +26,16 @@ jobs:
       with:
         go-version: '1.23'  # 设置Go版本，根据需要调整
 
-    - name: Set GOARCH and GOOS for target architecture
-      run: echo "GOARCH=${{ matrix.architecture }} GOOS=${{ matrix.os == 'ubuntu-latest' && 'linux' || 'darwin' }}" >> $GITHUB_ENV
-
     - name: Build executable
       run: |
-        GOARCH=$GOARCH GOOS=$GOOS go build -o $APP_NAME-${GOOS}-${GOARCH} main.go
+        GOARCH=${{ matrix.architecture }} GOOS=${{ matrix.os == 'ubuntu-latest' && 'linux' || 'darwin' }} go build -o $APP_NAME-${GOOS}-${GOARCH} ./cmd/myapp/main.go
         ls -lh $APP_NAME-${GOOS}-${GOARCH}  # 确认构建的文件
 
     - name: Upload build artifacts
       uses: actions/upload-artifact@v3
       with:
         name: $APP_NAME-${{ matrix.os }}-${{ matrix.architecture }}
-        path: $APP_NAME-${GOOS}-${GOARCH}
+        path: $APP_NAME-${{ matrix.os == 'ubuntu-latest' && 'linux' || 'darwin' }}-${{ matrix.architecture }}
 
   release:
     needs: build
@@ -56,14 +53,22 @@ jobs:
         response=$(curl -XPOST -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
           -d '{"tag_name": "'"${VERSION}"'", "name": "'"${VERSION}"'", "body": "Release of '${VERSION}'"}' \
           https://api.github.com/repos/${{ github.repository }}/releases)
-        echo "::set-output name=release_id::$(echo $response | jq .id)"
+        # 获取 release ID
+        release_id=$(echo $response | jq .id)
+        echo "release_id=$release_id" >> $GITHUB_ENV
 
     - name: Upload assets to GitHub release
       run: |
         VERSION=$(echo "${GITHUB_REF}" | sed 's/refs\/tags\///')
         echo "Uploading build artifacts for release $VERSION"
-        for file in $APP_NAME-darwin-x86_64 $APP_NAME-linux-x86_64 $APP_NAME-linux-arm64; do
-          curl -XPOST -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
-            -F "file=@$file" \
-            https://uploads.github.com/repos/${{ github.repository }}/releases/${{ steps.create_release.outputs.release_id }}/assets?name=$(basename $file)
+        # 根据操作系统和架构上传文件
+        for file in $APP_NAME-linux-amd64 $APP_NAME-linux-arm64 $APP_NAME-darwin-amd64; do
+          if [ -f "$file" ]; then
+            echo "Uploading $file"
+            curl -XPOST -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
+              -F "file=@$file" \
+              https://uploads.github.com/repos/${{ github.repository }}/releases/${{ env.release_id }}/assets?name=$(basename $file)
+          else
+            echo "$file does not exist"
+          fi
         done
